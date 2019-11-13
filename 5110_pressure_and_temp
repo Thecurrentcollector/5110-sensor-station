@@ -1,0 +1,127 @@
+#include <SPI.h>
+#include <LowPower.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_BMP280.h>
+#include <Adafruit_PCD8544.h>
+
+//---------------------------------------------------INIT----------------------------------------------------------------
+// Initialize LCD object for hardware SPI
+// Adafruit_PCD8544(D/C,CE,RST);
+Adafruit_PCD8544 display = Adafruit_PCD8544(4, 3, 2);
+
+//Initialize BMP280
+#define BMP_280_I2C_ADDRESS 0x76
+Adafruit_BMP280 bmp280;
+
+//---------------------------------------------------VARIABLER----------------------------------------------------------------
+byte xOffset = 0;
+byte yOffset = 33;
+int voltagePin = A6;
+float temp;
+float pressure;
+byte wakeCounter = 10;
+float voltage = 0.0;
+int batteryPercent = 0;
+
+// 'Baro', 13x13px
+const unsigned char baro [] PROGMEM = {
+  0x0f, 0x80, 0x12, 0x40, 0x22, 0x20, 0x42, 0x50, 0x80, 0x88, 0x81, 0x08, 0xf2, 0x38, 0x80, 0x08, 
+  0x80, 0x08, 0x40, 0x10, 0x20, 0x20, 0x10, 0x40, 0x0f, 0x80
+};
+
+// 'Temp', 7x16px
+const unsigned char tempGraph [] PROGMEM = {
+  0x38, 0x44, 0x44, 0x44, 0x44, 0x54, 0x54, 0x54, 0x54, 0x54, 0x54, 0x92, 0xba, 0xba, 0x82, 0x7c
+};
+// 'Deg', 5x5px
+const unsigned char deg [] PROGMEM = {
+  0x70, 0x88, 0x88, 0x88, 0x70
+};
+
+// 'Batteri', 8x16px
+const unsigned char batteri [] PROGMEM = {
+  0x3c, 0xff, 0x81, 0x81, 0x81, 0x81, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
+};
+
+// 'Baro2', 11x8px
+const unsigned char baro2 [] PROGMEM = {
+  0x0e, 0x00, 0x35, 0x80, 0x44, 0x40, 0x40, 0xc0, 0x81, 0x20, 0xc2, 0x60, 0x84, 0x20, 0xff, 0xe0
+};
+
+//---------------------------------------------------FUNKSJONER----------------------------------------------------------------
+//Functions to draw each static icon.
+void displayTemp()  {
+  display.drawBitmap(2, 0, tempGraph, 7, 16, BLACK);
+  display.setCursor(14,1);
+  display.setTextColor(BLACK);
+  display.setTextSize(2);
+  display.print(temp, 1);
+  display.drawBitmap(66, 1, deg, 5, 5, BLACK);
+  display.display();
+}
+
+void displayPressure()  {
+  display.drawBitmap(0, 20, baro2, 11, 8, BLACK);
+  display.setCursor(14,17);
+  display.setTextColor(BLACK);
+  display.setTextSize(2);
+  display.print(pressure, 1);
+  display.display();
+}
+
+void displayVoltage() {
+  display.drawBitmap(2, 32, batteri, 8, 15, BLACK);
+  display.setCursor(14, 36);
+  display.setTextColor(BLACK);
+  display.setTextSize(1);
+  display.print(voltage, 2);
+  display.print("V/");
+  display.print(batteryPercent);
+  display.print("%");
+  display.display();
+}
+
+//---------------------------------------------------SETUP----------------------------------------------------------------
+void setup() {
+
+//BMP280 setup
+bmp280.begin(BMP_280_I2C_ADDRESS);
+
+pinMode(voltagePin, INPUT);
+
+//Display contrast, rotation, 
+display.begin();
+display.setContrast(57);
+display.setRotation(2);
+display.setTextWrap(false);
+display.clearDisplay();
+}
+
+//---------------------------------------------------LOOP----------------------------------------------------------------
+void loop() {
+
+wakeCounter++;
+
+if (wakeCounter > 3) {
+  wakeCounter = 0;
+  
+  bmp280.wakeup();
+  delay(2);
+  
+  analogRead(voltagePin); //burn this reading
+  voltage = ((analogRead(voltagePin)) / 1023.0) * 3.27;
+  batteryPercent = int((voltage / 1.33 )*100.0);
+  
+  temp = bmp280.readTemperature();
+  pressure = (bmp280.readPressure() / 100.0F); //Convert pressure from floating point Pascal to floating point hPa
+  
+  display.clearDisplay();
+  displayTemp();
+  displayPressure();
+  displayVoltage();
+  display.display();
+  
+  bmp280.sleep();
+  }
+LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); 
+}
